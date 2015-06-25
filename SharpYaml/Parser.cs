@@ -311,13 +311,24 @@ namespace SharpYaml
 		{
 			VersionDirective version = null;
 
+			bool clearedDirectives = false;
 			while (true)
 			{
 				VersionDirective currentVersion;
 				TagDirective tag;
 
+				// YAML 1.1, Section 7.4: If the document specifies no directives, it is parsed using the same settings as the previous document.
+				// If the document does specify any directives, all directives of previous documents, if any, are ignored.
+				//
+				// Only clear directives for new documents if there are any directives specified.
 				if ((currentVersion = GetCurrentToken() as VersionDirective) != null)
 				{
+					if (!clearedDirectives)
+					{
+						clearedDirectives = true;
+						tagDirectives.Clear();
+					}
+
 					if (version != null)
 					{
 						throw new SemanticErrorException(currentVersion.Start, currentVersion.End, "Found duplicate %YAML directive.");
@@ -332,6 +343,12 @@ namespace SharpYaml
 				}
 				else if ((tag = GetCurrentToken() as TagDirective) != null)
 				{
+					if (!clearedDirectives)
+					{
+						clearedDirectives = true;
+						tagDirectives.Clear();
+					}
+
 					if (tagDirectives.Contains(tag.Handle))
 					{
 						throw new SemanticErrorException(tag.Start, tag.End, "Found duplicate %TAG directive.");
@@ -354,6 +371,7 @@ namespace SharpYaml
 			{
 				AddDefaultTagDirectives(tags);
 			}
+
 			AddDefaultTagDirectives(tagDirectives);
 
 			return version;
@@ -586,8 +604,6 @@ namespace SharpYaml
 				Skip();
 				isImplicit = false;
 			}
-
-			tagDirectives.Clear();
 
 			state = ParserState.YAML_PARSE_DOCUMENT_START_STATE;
 			return new Events.DocumentEnd(isImplicit, start, end);
